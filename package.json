@@ -1,0 +1,14 @@
+{
+  "name": "amqp-decorator",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@nestjs/common": "^6.10.14",
+    "@types/node": "^13.1.8",
+    "@types/uuid": "^3.4.6",
+    "amqplib-as-promised": "^4.0.0",
+    "reflect-metadata": "^0.1.13",
+    "uuid": "^3.4.0"
+  }
+}
