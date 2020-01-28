@@ -30,7 +30,10 @@ export const AmqpResponder = (options: AMQPQueueOption = {}) => (
     Reflect.defineMetadata(AMQP_RESPONDER_QUEUES, list, target)
 }
 
-
+export const getKey = async(key: any) => {
+    if(typeof key == 'function') return await key()
+    return await key
+}
 
 
 export const activeResponders = async (target: any) => {
@@ -52,7 +55,7 @@ export const activeResponders = async (target: any) => {
             const request = JSON.parse(msg.content.toString()) as Request
             if (!process_old_requests && request.requested_time < started_time) return await channel.ack(msg)
             try {
-                const result = await target[method](...request.args)
+                const result = await target[method](...request.args) || {}
                 if (typeof result == 'object' && result[WAITFOR]) { // If have looong task
                     const { [WAITFOR]: wait_long_task, ...data } = result
                     const response: Response = { id: request.id, success: true, data }
@@ -81,8 +84,7 @@ export const activeResponders = async (target: any) => {
 
         // Create direct request
         if (id) {
-            let key = await id
-            if (typeof key == 'function') key = await (key as Function)(target)
+            const key = await getKey(id)
             await channel.assertExchange(queue, 'direct')
             const { queue: direct_request_queue } = await channel.assertQueue('', { exclusive: true })
             await channel.bindQueue(direct_request_queue, queue, key)
