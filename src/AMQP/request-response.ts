@@ -30,8 +30,8 @@ export const AmqpResponder = (options: AMQPQueueOption = {}) => (
     Reflect.defineMetadata(AMQP_RESPONDER_QUEUES, list, target)
 }
 
-export const getKey = async(key: any) => {
-    if(typeof key == 'function') return await key()
+export const getKey = async (key: any) => {
+    if (typeof key == 'function') return await key()
     return await key
 }
 
@@ -105,50 +105,22 @@ export const activeResponders = async (target: any) => {
 
 
 
-export const AmqpRemoteService = async <T>(target: any) => {
+export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = []) => {
+    
     if (!AMQP.publish_channel) throw new Error('Init amqp connection before tasks')
-    const inited = Reflect.getMetadata(AMQP_DECORATER_INITED, target)
-    const client_class = target.prototype
-    const name = client_class.constructor.name
-    if (!inited) throw new Error('MISSING AMQP INIT DECORATOR for ' + name)
-    const responders: QueueDecoratorMetadata[] = Reflect.getMetadata(AMQP_RESPONDER_QUEUES, client_class) || []
-
-    const respond_to_queues = new Map<string, string>()
-
-    const promises = responders.map(async r => {
-        try {
-            const queue = `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${r.method}`
-            await AMQP.publish_channel.assertQueue(queue, { durable: false })
-            const { queue: respond_to_queue } = await AMQP.publish_channel.assertQueue(`${queue}|${v4()}`, { durable: false })
-            respond_to_queues.set(r.method, respond_to_queue)
-            await AMQP.consume_channel.consume(
-                respond_to_queue,
-                async msg => {
-                    const { id, data, success, message } = JSON.parse(msg.content.toString()) as Response
-                    if (Callbacks.has(id)) {
-                        success ? Callbacks.get(id).success(data) : Callbacks.get(id).reject(message)
-                        Callbacks.delete(id)
-                    }
-                },
-                { noAck: true }
-            )
-        } catch (e) {
-            console.log('Error here', e)
-        }
-    })
-    await Promise.all(promises)
-
-
+    const name = target.name
+    const respond_to = await AMQP.publish_channel.assertQueue('')
 
     return new Proxy(target, {
         get: (_, prop) => {
 
+            if ([...omit_events, 'then'].includes(prop as string)) return null
+
             if (prop == 'to') return key => new Proxy({}, {
                 get: (_, prop) => async (...args: any[]) => {
                     const method = prop as string
-                    if (!respond_to_queues.has(method)) throw new Error(`Missing decorator for method ${name}.${method} *`)
                     const id = v4()
-                    const data = Buffer.from(JSON.stringify({ args, id, respond_to: respond_to_queues.get(method) } as Request))
+                    const data = Buffer.from(JSON.stringify({ args, id, respond_to: respond_to.get(method) } as Request))
                     return await new Promise(async (success, reject) => {
                         Callbacks.set(id, { success, reject })
                         await AMQP.publish_channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, key, data)
@@ -156,12 +128,10 @@ export const AmqpRemoteService = async <T>(target: any) => {
                 }
             })
 
-            if (!respond_to_queues.has(prop as string)) return undefined
-
             return async (...args: any[]) => {
                 const method = prop as string
                 const id = v4()
-                const data = Buffer.from(JSON.stringify({ args, id, respond_to: respond_to_queues.get(method), requested_time: Date.now() } as Request))
+                const data = Buffer.from(JSON.stringify({ args, id, respond_to: respond_to.get(method), requested_time: Date.now() } as Request))
                 return await new Promise(async (success, reject) => {
                     Callbacks.set(id, { success, reject })
                     await AMQP.publish_channel.sendToQueue(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, data)

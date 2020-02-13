@@ -21,5 +21,5 @@ export const error_on_timeout = async <T>(task: Promise<T>, timeout: number) => 
 
 export const AmqpRemoteServiceProvider = (provide: any) => ({
     provide,
-    useFactory: () => AmqpRemoteService(provide)
+    useFactory: () => AmqpRemoteService(provide, ['onModuleInit', 'onApplicationBootstrap', 'onModuleDestroy', 'beforeApplicationShutdown', 'onApplicationShutdown'])
 } as Provider)
