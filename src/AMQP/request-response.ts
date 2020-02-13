@@ -70,7 +70,7 @@ export const activeResponders = async (target: any) => {
                 channel.sendToQueue(request.respond_to, Buffer.from(JSON.stringify(response)))
 
             }
-            limit ?? await channel.ack(msg)
+            limit && await channel.ack(msg)
         }
 
         // Round request
