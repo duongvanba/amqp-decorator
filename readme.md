@@ -47,14 +47,14 @@ setImmediate(async() => {
  ```
  
  ```typescript
- // resquester.ts
+ // requester.ts
  import { AMQP, AmqpRemoteService } from 'amqp-decorator'
  import { ServiceX } from './ServiceX'
  
  setImmediate(async() => {
     await AMQP.init()
     const service_x = await AmqpRemoteService<ServiceX>(ServiceX)
-    console.log(await x.some_method()) // =>  This is response from remote service
+    console.log(await service_x.some_method()) // =>  This is response from remote service
  })
  ```
  you can use addtional options
@@ -65,7 +65,7 @@ class X{
      @AmqpResponder({
          limit: number // Max concurrent call function in same time
          active_when: (x: X) => Promise<boolean> // Consumer will listening until condition return true
-         id: string | Promise<string> | (x: X) => Promise<string> // Function return id of this consumer, to use direct request
+         id: string | (x: X) => Promise<string> // Function return id of this consumer, to use direct request
          process_old_requests: boolean // Process requests before consumer start?
     })
     

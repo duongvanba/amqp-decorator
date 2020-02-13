@@ -13,7 +13,7 @@ export class AMQP {
     private static consume_connection: Connection
     
 
-    static async init(url: string) {
+    static async init(url?: string) {
         const publish_connection = new Connection(url || process.env.RABBIT_MQ_URL || 'amqp://localhost:6789')
         await publish_connection.init()
         this.publish_channel = await publish_connection.createChannel()

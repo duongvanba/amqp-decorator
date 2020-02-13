@@ -3,6 +3,7 @@ import { waitFor } from "./waitFor"
 import { WAITFOR, AMQP_DECORATER_INITED } from "./symbol"
 import { AMQP } from "./AMQP"
 import { v4 } from 'uuid'
+import { MessageHandler } from "amqplib-as-promised/lib/channel"
 
 const AMQP_RESPONDER_QUEUES = Symbol.for('AMQP_RESPONDER_QUEUES')
 
@@ -11,7 +12,7 @@ const Callbacks = new Map<string, { reject: Function, success: Function }>()
 type AMQPQueueOption = {
     process_old_requests?: boolean,
     limit?: number,
-    id?: string | Promise<string>,
+    id?: string | ((s: any) => Promise<string> | string),
     active_when?: (target: any) => boolean | Promise<boolean>
 }
 
@@ -30,10 +31,8 @@ export const AmqpResponder = (options: AMQPQueueOption = {}) => (
     Reflect.defineMetadata(AMQP_RESPONDER_QUEUES, list, target)
 }
 
-export const getKey = async (key: any) => {
-    if (typeof key == 'function') return await key()
-    return await key
-}
+
+
 
 
 export const activeResponders = async (target: any) => {
@@ -48,6 +47,7 @@ export const activeResponders = async (target: any) => {
 
         const channel = await AMQP.getChannel({ limit })
         const queue = `${process.env.QUEUE_PREFIX || ''}|amqp|request::${request_name}-${method}` // Listen requests queue & exchange
+
 
 
 
@@ -84,7 +84,7 @@ export const activeResponders = async (target: any) => {
 
         // Create direct request
         if (id) {
-            const key = await getKey(id)
+            const key = typeof id == 'string' ? id : await id(target)
             await channel.assertExchange(queue, 'direct')
             const { queue: direct_request_queue } = await channel.assertQueue('', { exclusive: true })
             await channel.bindQueue(direct_request_queue, queue, key)
@@ -106,10 +106,19 @@ export const activeResponders = async (target: any) => {
 
 
 export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = []) => {
-    
+
     if (!AMQP.publish_channel) throw new Error('Init amqp connection before tasks')
     const name = target.name
-    const respond_to = await AMQP.publish_channel.assertQueue('')
+    const { queue: respond_to } = await AMQP.publish_channel.assertQueue('')
+
+    await AMQP.consume_channel.consume(respond_to, async msg => {
+        const { id, success, data, message } = JSON.parse(msg.content) as Response
+        if (Callbacks.has(id)) {
+            const cb = Callbacks.get(id)
+            success ? cb.success(data) : cb.reject(message)
+        }
+    })
+
 
     return new Proxy(target, {
         get: (_, prop) => {
@@ -120,7 +129,7 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
                 get: (_, prop) => async (...args: any[]) => {
                     const method = prop as string
                     const id = v4()
-                    const data = Buffer.from(JSON.stringify({ args, id, respond_to: respond_to.get(method) } as Request))
+                    const data = Buffer.from(JSON.stringify({ args, id, respond_to } as Request))
                     return await new Promise(async (success, reject) => {
                         Callbacks.set(id, { success, reject })
                         await AMQP.publish_channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, key, data)
@@ -131,10 +140,13 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
             return async (...args: any[]) => {
                 const method = prop as string
                 const id = v4()
-                const data = Buffer.from(JSON.stringify({ args, id, respond_to: respond_to.get(method), requested_time: Date.now() } as Request))
+                const data = { args, id, respond_to, requested_time: Date.now() } as Request
                 return await new Promise(async (success, reject) => {
                     Callbacks.set(id, { success, reject })
-                    await AMQP.publish_channel.sendToQueue(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, data)
+                    await AMQP.publish_channel.sendToQueue(
+                        `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`,
+                        Buffer.from(JSON.stringify(data))
+                    )
                 })
             }
         }
