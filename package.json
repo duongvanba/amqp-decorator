@@ -1,6 +1,6 @@
 {
   "name": "amqp-decorator",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "main": "dist/index.js",
   "license": "MIT",
   "repository": "https://github.com/duongvanba/amqp-decorator",
@@ -15,6 +15,5 @@
   },
   "scripts": {
     "build": "tsc -b .",
-    "postinstall": "yarn build"
   }
 }
