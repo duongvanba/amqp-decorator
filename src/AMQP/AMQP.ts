@@ -22,7 +22,6 @@ export class AMQP {
         await this.consume_connection.init()
 
         this.consume_channel = await this.consume_connection.createChannel()
-        this.consume_channel.prefetch(1)
         console.log('AMQP inited')
     }
 

@@ -1,9 +1,8 @@
 import { Message } from "amqplib-as-promised/lib"
 import { waitFor } from "./waitFor"
-import { WAITFOR, AMQP_DECORATER_INITED } from "./symbol"
+import { WAITFOR } from "./symbol"
 import { AMQP } from "./AMQP"
 import { v4 } from 'uuid'
-import { MessageHandler } from "amqplib-as-promised/lib/channel"
 
 const AMQP_RESPONDER_QUEUES = Symbol.for('AMQP_RESPONDER_QUEUES')
 
@@ -71,7 +70,7 @@ export const activeResponders = async (target: any) => {
                 channel.sendToQueue(request.respond_to, Buffer.from(JSON.stringify(response)))
 
             }
-            await channel.ack(msg)
+            limit ?? await channel.ack(msg)
         }
 
         // Round request
@@ -79,7 +78,7 @@ export const activeResponders = async (target: any) => {
         channel.consume(
             queue,
             message_handler,
-            { noAck: false, consumerTag: `${request_name}-${method}-responder-${v4()}` }
+            { noAck: limit == undefined, consumerTag: `${request_name}-${method}-responder-${v4()}` }
         )
 
         // Create direct request
@@ -91,7 +90,7 @@ export const activeResponders = async (target: any) => {
             await channel.consume(
                 direct_request_queue,
                 message_handler,
-                { noAck: false, consumerTag: `${request_name}-${method}-responder-${v4()}` }
+                { noAck: limit == undefined, consumerTag: `${request_name}-${method}-responder-${v4()}` }
             )
         }
 
@@ -116,8 +115,9 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
         if (Callbacks.has(id)) {
             const cb = Callbacks.get(id)
             success ? cb.success(data) : cb.reject(message)
+            Callbacks.delete(id)
         }
-    })
+    }, { noAck: true })
 
 
     return new Proxy(target, {
