@@ -14,6 +14,7 @@
     "uuid": "^3.4.0"
   },
   "scripts": {
-    "build": "tsc -b ."
+    "build": "tsc -b .",
+    "postinstall": "yarn build"
   }
 }
