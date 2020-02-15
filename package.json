@@ -1,6 +1,6 @@
 {
   "name": "amqp-decorator",
-  "version": "1.0.11",
+  "version": "1.0.13",
   "main": "dist/index.js",
   "license": "MIT",
   "repository": "https://github.com/duongvanba/amqp-decorator",

@@ -52,7 +52,7 @@ export const activeResponders = async (target: any) => {
 
         const message_handler = async (msg: Message) => {
             const request = JSON.parse(msg.content.toString()) as Request
-            if (!process_old_requests && request.requested_time < started_time) return await channel.ack(msg)
+            if (!process_old_requests && request.requested_time < started_time) return limit && await channel.ack(msg)
             try {
                 const result = await target[method](...request.args) || {}
                 if (typeof result == 'object' && result[WAITFOR]) { // If have looong task
