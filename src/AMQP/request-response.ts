@@ -108,7 +108,7 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
 
     if (!AMQP.publish_channel) throw new Error('Init amqp connection before tasks')
     const name = target.name
-    const { queue: respond_to } = await AMQP.publish_channel.assertQueue('', { exclusive: true, durable: false })
+    const { queue: respond_to } = await AMQP.consume_channel.assertQueue('', { exclusive: true, durable: false })
 
     await AMQP.consume_channel.consume(respond_to, async msg => {
         const { id, success, data, message } = JSON.parse(msg.content) as Response
