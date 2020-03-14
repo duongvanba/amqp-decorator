@@ -1,13 +1,14 @@
 {
   "name": "amqp-decorator",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "main": "dist/index.js",
   "license": "MIT",
   "repository": "https://github.com/duongvanba/amqp-decorator",
   "dependencies": {
-    "@nestjs/common": "^6.10.14",
+    "@nestjs/common": "^6.10.14", 
     "amqplib-as-promised": "^4.0.0",
-    "uuid": "^3.4.0"
+    "rxjs": "^6.5.4",
+    "uuid": "^7.0.2"
   },
   "peerDependencies": {
     "reflect-metadata": "^0.1.13",

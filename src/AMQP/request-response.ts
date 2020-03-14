@@ -85,7 +85,7 @@ export const activeResponders = async (target: any) => {
         if (id) {
             const key = typeof id == 'string' ? id : await id(target)
             await channel.assertExchange(queue, 'direct')
-            const { queue: direct_request_queue } = await channel.assertQueue('', { exclusive: true })
+            const { queue: direct_request_queue } = await channel.assertQueue('', { exclusive: true, durable: false })
             await channel.bindQueue(direct_request_queue, queue, key)
             await channel.consume(
                 direct_request_queue,
@@ -108,7 +108,7 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
 
     if (!AMQP.publish_channel) throw new Error('Init amqp connection before tasks')
     const name = target.name
-    const { queue: respond_to } = await AMQP.publish_channel.assertQueue('')
+    const { queue: respond_to } = await AMQP.publish_channel.assertQueue('', { exclusive: true, durable: false })
 
     await AMQP.consume_channel.consume(respond_to, async msg => {
         const { id, success, data, message } = JSON.parse(msg.content) as Response
