@@ -4,3 +4,4 @@ build
 src
 yarn*
 bin
+tsconfig.json
