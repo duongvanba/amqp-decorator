@@ -13,9 +13,8 @@ export class AMQP {
     private static listeners = new Set()
 
     static async init(url?: string) {
+
         const connection_url = url || process.env.RABBIT_MQ_URL || 'amqp://localhost:6789'
-
-
 
         const connect = async (n: number = 0) => {
             if (n != 0) {
@@ -65,7 +64,7 @@ export class AMQP {
         } catch (e) {
             throw new Error('Can not get AMQP channel, connection drop or not inited')
         }
-    }
+    } 
 }
 
 export const AmqpService = () => AMQP.connect()
