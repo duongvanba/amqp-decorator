@@ -10,27 +10,47 @@ export class AMQP {
 
     private static connection: Connection
 
+    private static listeners = new Set()
 
     static async init(url?: string) {
-        this.connection = new Connection(url || process.env.RABBIT_MQ_URL || 'amqp://localhost:6789')
-        await this.connection.init()
-        this.connection.on('error', () => {
-            console.log('Connection error')
-        })
-        this.channel = await this.connection.createChannel()
-        this.channel.on('error', () => {
-            console.log('Channel error')
-        })
-        console.log('AMQP inited')
+        const connection_url = url || process.env.RABBIT_MQ_URL || 'amqp://localhost:6789'
+
+
+
+        const connect = async (n: number = 0) => {
+            if (n != 0) {
+                console.log(`${n}. Retry to connect rabbitMQ in 5s`)
+                await new Promise(s => setTimeout(s, 5000))
+            }
+            this.connection = new Connection(connection_url)
+            try {
+                await this.connection.init()
+                this.channel = await this.connection.createChannel()
+            } catch (e) {
+                console.error(e)
+                return connect(n + 1)
+            }
+            this.connection.on('error', e => (console.error(e), connect(n + 1)))
+            this.channel.on('error', e => (console.error(e), connect(n + 1)))
+            console.log('AMQP inited')
+            this.listeners.size > 0 && console.log(`Re-actived ${this.listeners.size} consumers & subscribers`)
+            for (const listener of this.listeners) {
+                activeResponders(listener)
+                activeSubscribers(listener)
+            }
+        }
+        await connect(0)
     }
 
     static connect() {
+        const add = target => this.listeners.add(target)
         return (C: any) => {
             return class extends C {
                 constructor(...props) {
                     super(...props)
                     activeResponders(this)
                     activeSubscribers(this)
+                    add(this)
                 }
             } as any
         }

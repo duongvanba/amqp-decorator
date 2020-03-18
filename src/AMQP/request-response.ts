@@ -85,7 +85,7 @@ export const activeResponders = async (target: any) => {
         if (id) {
             const key = typeof id == 'string' ? id : await id(target)
             await channel.assertExchange(queue, 'direct')
-            const { queue: direct_request_queue } = await channel.assertQueue('', { exclusive: true, durable: false })
+            const { queue: direct_request_queue } = await channel.assertQueue(`${queue}--${key}`, { exclusive: true, durable: false })
             await channel.bindQueue(direct_request_queue, queue, key)
             await channel.consume(
                 direct_request_queue,
