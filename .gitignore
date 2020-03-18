@@ -3,3 +3,4 @@ yarn.lock
 build
 dist
 yarn*
+bin

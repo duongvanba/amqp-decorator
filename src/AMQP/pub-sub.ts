@@ -26,8 +26,8 @@ export const createAmqpEvent = <T extends {}>(event_name: string) => {
     return {
         publish: async (data: T = {} as T) => {
             const exchange = `${process.env.QUEUE_PREFIX || ''}|pubsub|${event_name}`
-            await AMQP.publish_channel.assertExchange(exchange, 'fanout')
-            await AMQP.publish_channel.publish(exchange, '', Buffer.from(JSON.stringify({ data, published_at: Date.now() })))
+            await AMQP.channel.assertExchange(exchange, 'fanout')
+            await AMQP.channel.publish(exchange, '', Buffer.from(JSON.stringify({ data, published_at: Date.now() })))
         },
 
         subscribe: (options: PubSubQueueOptions = {}) => (

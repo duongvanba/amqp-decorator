@@ -62,7 +62,7 @@ export const activeResponders = async (target: any) => {
                     await wait_long_task()
                 } else {
                     const response: Response = { id: request.id, success: true, data: result }
-                    AMQP.publish_channel.sendToQueue(request.respond_to, Buffer.from(JSON.stringify(response)))
+                    AMQP.channel.sendToQueue(request.respond_to, Buffer.from(JSON.stringify(response)))
                 }
             } catch (e) {
                 const message = typeof e == 'string' ? e : e.message
@@ -106,11 +106,11 @@ export const activeResponders = async (target: any) => {
 
 export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = []) => {
 
-    if (!AMQP.publish_channel) throw new Error('Init amqp connection before tasks')
+    if (!AMQP.channel) throw new Error('Init amqp connection before tasks')
     const name = target.name
-    const { queue: respond_to } = await AMQP.consume_channel.assertQueue('', { exclusive: true, durable: false })
+    const { queue: respond_to } = await AMQP.channel.assertQueue('', { exclusive: true, durable: false })
 
-    await AMQP.consume_channel.consume(respond_to, async msg => {
+    await AMQP.channel.consume(respond_to, async msg => {
         const { id, success, data, message } = JSON.parse(msg.content) as Response
         if (Callbacks.has(id)) {
             const cb = Callbacks.get(id)
@@ -132,7 +132,7 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
                     const data = Buffer.from(JSON.stringify({ args, id, respond_to } as Request))
                     return await new Promise(async (success, reject) => {
                         Callbacks.set(id, { success, reject })
-                        await AMQP.publish_channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, key, data)
+                        await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, key, data)
                     })
                 }
             })
@@ -143,7 +143,7 @@ export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = 
                 const data = { args, id, respond_to, requested_time: Date.now() } as Request
                 return await new Promise(async (success, reject) => {
                     Callbacks.set(id, { success, reject })
-                    await AMQP.publish_channel.sendToQueue(
+                    await AMQP.channel.sendToQueue(
                         `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`,
                         Buffer.from(JSON.stringify(data))
                     )
