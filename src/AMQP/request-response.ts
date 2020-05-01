@@ -107,7 +107,7 @@ export const activeResponders = async (target: any) => {
 export const AmqpRemoteService = async <T>(target: any, omit_events: string[] = []) => {
 
     if (!AMQP.channel) throw new Error('Init amqp connection before tasks')
-    const name = Object.getPrototypeOf(target).name
+    const name = target.name
     const { queue: respond_to } = await AMQP.channel.assertQueue('', { exclusive: true, durable: false })
 
     await AMQP.channel.consume(respond_to, async msg => {
