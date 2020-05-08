@@ -14,7 +14,7 @@ export class AMQP {
 
     static channel: Channel
 
-    static local_response_queue = `${process.env.QUEUE_PREFIX || ''}|local-response-${v4()}`
+    static local_response_queue = `${process.env.QUEUE_PREFIX || ''}|local-response-${v4()}-${Date.now()}`
 
     private static connection: Connection
 
@@ -26,7 +26,7 @@ export class AMQP {
 
         const connect = async (n: number = 0) => {
             if (n != 0) {
-                console.log(`${n}. Retry to connect rabbitMQ in 5s`)
+                console.log(`${n}.Retry to connect rabbitMQ in 5s`)
                 await new Promise(s => setTimeout(s, 5000))
             }
             this.connection = new Connection(connection_url)
@@ -40,23 +40,25 @@ export class AMQP {
             this.connection.on('error', e => (console.error(e), connect(n + 1)))
             this.channel.on('error', e => (console.error(e), connect(n + 1)))
             console.log('AMQP inited')
-            this.listeners.size > 0 && console.log(`Re-actived ${this.listeners.size} consumers & subscribers`)
+            this.listeners.size > 0 && console.log(`Re - actived ${this.listeners.size} consumers & subscribers`)
+
             for (const listener of this.listeners) {
                 activeResponders(listener)
                 activeSubscribers(listener)
-
-                // Active request by name
-                const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
-
-                await AMQP.channel.consume(queue, async msg => {
-                    const { id, success, data, message } = JSON.parse(msg.content) as Response
-                    if (ResponseCallbackList.has(id)) {
-                        const cb = ResponseCallbackList.get(id)
-                        success ? cb.success(data) : cb.reject(message)
-                        ResponseCallbackList.delete(id)
-                    }
-                }, { noAck: true })
             }
+
+
+            // Active request by name
+            const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
+
+            await AMQP.channel.consume(queue, async msg => {
+                const { id, success, data, message } = JSON.parse(msg.content) as Response
+                if (ResponseCallbackList.has(id)) {
+                    const cb = ResponseCallbackList.get(id)
+                    success ? cb.success(data) : cb.reject(message)
+                    ResponseCallbackList.delete(id)
+                }
+            }, { noAck: true })
         }
         await connect(0)
     }
@@ -104,8 +106,8 @@ export class AMQP {
 
         return await new Promise(async (success, reject) => {
             ResponseCallbackList.set(id, { success, reject })
-            to ? await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, to, data) : await AMQP.channel.sendToQueue(
-                `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`,
+            to ? await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}| amqp | request:: ${name} -${method} `, to, data) : await AMQP.channel.sendToQueue(
+                `${process.env.QUEUE_PREFIX || ''}| amqp | request:: ${name} -${method} `,
                 Buffer.from(JSON.stringify(data))
             )
         })
