@@ -106,9 +106,9 @@ export class AMQP {
 
         return await new Promise(async (success, reject) => {
             ResponseCallbackList.set(id, { success, reject })
-            to ? await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}| amqp | request:: ${name} -${method} `, to, data) : await AMQP.channel.sendToQueue(
-                `${process.env.QUEUE_PREFIX || ''}| amqp | request:: ${name} -${method} `,
-                Buffer.from(JSON.stringify(data))
+            to ? await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, to, data) : await AMQP.channel.sendToQueue(
+                `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`,
+                data
             )
         })
     }
