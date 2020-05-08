@@ -2,11 +2,19 @@ import 'reflect-metadata'
 import { Connection, Channel } from "amqplib-as-promised/lib"
 import { activeResponders } from './request-response'
 import { activeSubscribers } from './pub-sub'
+import { v4 } from 'uuid'
+
+const ResponseCallbackList = new Map<string, { reject: Function, success: Function }>()
+type Request = { id: string, args: any[], respond_to: string, requested_time: number }
+type Response = { success: boolean, data?: any, message?: string, id: string }
+
 
 
 export class AMQP {
 
     static channel: Channel
+
+    static local_response_queue = `${process.env.QUEUE_PREFIX || ''}|local-response-${v4()}`
 
     private static connection: Connection
 
@@ -36,6 +44,18 @@ export class AMQP {
             for (const listener of this.listeners) {
                 activeResponders(listener)
                 activeSubscribers(listener)
+
+                // Active request by name
+                const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
+
+                await AMQP.channel.consume(queue, async msg => {
+                    const { id, success, data, message } = JSON.parse(msg.content) as Response
+                    if (ResponseCallbackList.has(id)) {
+                        const cb = ResponseCallbackList.get(id)
+                        success ? cb.success(data) : cb.reject(message)
+                        ResponseCallbackList.delete(id)
+                    }
+                }, { noAck: true })
             }
         }
         await connect(0)
@@ -64,7 +84,32 @@ export class AMQP {
         } catch (e) {
             throw new Error('Can not get AMQP channel, connection drop or not inited')
         }
-    } 
+    }
+
+    static async requestToService(req: {
+        name: string,
+        to?: string,
+        method: string,
+        args: any[]
+    }) {
+        const { args, method, name, to } = req
+
+        const id = v4()
+
+        const data = Buffer.from(JSON.stringify({
+            args,
+            id,
+            respond_to: AMQP.local_response_queue
+        } as Request))
+
+        return await new Promise(async (success, reject) => {
+            ResponseCallbackList.set(id, { success, reject })
+            to ? await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, to, data) : await AMQP.channel.sendToQueue(
+                `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`,
+                Buffer.from(JSON.stringify(data))
+            )
+        })
+    }
 }
 
 export const AmqpService = () => AMQP.connect()
