@@ -88,7 +88,7 @@ export class AMQP {
         }
     }
 
-    static async requestToService(req: {
+    static async requestToService<T>(req: {
         name: string,
         to?: string,
         method: string,
@@ -104,14 +104,14 @@ export class AMQP {
             respond_to: AMQP.local_response_queue
         } as Request))
 
-        return await new Promise(async (success, reject) => {
+        return await new Promise<T>(async (success, reject) => {
             ResponseCallbackList.set(id, { success, reject })
             to ? await AMQP.channel.publish(`${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`, to, data) : await AMQP.channel.sendToQueue(
                 `${process.env.QUEUE_PREFIX || ''}|amqp|request::${name}-${method}`,
                 data
             )
         })
-    }
+    } 
 }
 
 export const AmqpService = () => AMQP.connect()
