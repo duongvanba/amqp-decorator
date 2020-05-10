@@ -92,14 +92,14 @@ export class AMQP {
         name: string,
         to?: string,
         method: string,
-        args: any[]
+        args?: any[]
     }) {
         const { args, method, name, to } = req
 
         const id = v4()
 
         const data = Buffer.from(JSON.stringify({
-            args,
+            args: args || [],
             id,
             respond_to: AMQP.local_response_queue
         } as Request))
@@ -111,7 +111,7 @@ export class AMQP {
                 data
             )
         })
-    } 
+    }
 }
 
 export const AmqpService = () => AMQP.connect()
