@@ -44,14 +44,16 @@ export class AMQP {
             this.listeners.size > 0 && console.log(`Re - actived ${this.listeners.size} consumers & subscribers`)
 
             for (const listener of this.listeners) {
-                activeResponders(listener)
-                activeSubscribers(listener)
+                await activeResponders(listener)
+                await activeSubscribers(listener)
+            }
+
+            for (const listener of this.listeners) {
                 if (Reflect.hasMetadata(ON_RECONNECT_CALLBACK, listener)) {
                     const method = Reflect.getMetadata(ON_RECONNECT_CALLBACK, listener)
                     listener[method]()
                 }
             }
-
 
             // Active request by name
             const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
@@ -74,13 +76,15 @@ export class AMQP {
             return class extends C {
                 constructor(...props) {
                     super(...props)
-                    activeResponders(this)
-                    activeSubscribers(this)
-                    add(this)
-                    if (Reflect.hasMetadata(ON_READY_CALLBACK, this)) {
-                        const on_ready_callback_method = Reflect.getMetadata(ON_READY_CALLBACK, this)
-                        this[on_ready_callback_method]()
-                    }
+                    setImmediate(async () => {
+                        await activeResponders(this)
+                        await activeSubscribers(this)
+                        add(this)
+                        if (Reflect.hasMetadata(ON_READY_CALLBACK, this)) {
+                            const on_ready_callback_method = Reflect.getMetadata(ON_READY_CALLBACK, this)
+                            this[on_ready_callback_method]()
+                        }
+                    })
                 }
             } as any
         }
