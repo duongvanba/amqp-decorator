@@ -54,20 +54,21 @@ export const activeSubscribers = async (target: any) => {
         await channel.bindQueue(queue, exchange, '')
         const subscribler_class_name = Object.getPrototypeOf(Object.getPrototypeOf(target)).constructor.name
 
-
-        active_when && await waitFor(() => active_when(target))
-        await channel.consume(
-            queue,
-            async msg => {
-                try {
-                    const { data, published_at } = JSON.parse(msg.content.toString()) as { data: any, published_at: number }
-                    await target[method](data, published_at)
-                } catch (e) {
-                    console.error(e)
-                }
-            },
-            { noAck: true, consumerTag: `event:${event_name}#${subscribler_class_name}-${method}` }
-        )
+        setImmediate(async () => {
+            active_when && await waitFor(() => active_when(target))
+            await channel.consume(
+                queue,
+                async msg => {
+                    try {
+                        const { data, published_at } = JSON.parse(msg.content.toString()) as { data: any, published_at: number }
+                        await target[method](data, published_at)
+                    } catch (e) {
+                        console.error(e)
+                    }
+                },
+                { noAck: true, consumerTag: `event:${event_name}#${subscribler_class_name}-${method}` }
+            )
+        })
     })
 
     await Promise.all(promies)

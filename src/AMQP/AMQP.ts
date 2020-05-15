@@ -21,70 +21,64 @@ export class AMQP {
 
     private static listeners = new Set()
 
+    private static async activeClass(target: any, n: number = 0) {
+        await activeResponders(target)
+        await activeSubscribers(target)
+        const event = n == 0 ? ON_READY_CALLBACK : ON_RECONNECT_CALLBACK
+        if (Reflect.hasMetadata(event, target)) {
+            const method = Reflect.getMetadata(event, target)
+            target[method]()
+        }
+    }
+
     static async init(url?: string) {
 
         const connection_url = url || process.env.RABBIT_MQ_URL || 'amqp://localhost:6789'
 
-        const connect = async (n: number = 0) => {
-            if (n != 0) {
-                console.log(`${n}.Retry to connect rabbitMQ in 5s`)
-                await new Promise(s => setTimeout(s, 5000))
-            }
-            this.connection = new Connection(connection_url)
+        for (let n = 0; true; n++) {
+
             try {
+                this.connection = new Connection(connection_url)
                 await this.connection.init()
-                this.channel = await this.connection.createChannel()
+
+                // Active all listener
+                for (const listener of this.listeners) this.activeClass(listener, n)
+
+                // Active request by name
+                const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
+
+                await AMQP.channel.consume(queue, async msg => {
+                    const { id, success, data, message } = JSON.parse(msg.content) as Response
+                    if (ResponseCallbackList.has(id)) {
+                        const cb = ResponseCallbackList.get(id)
+                        success ? cb.success(data) : cb.reject(message)
+                        ResponseCallbackList.delete(id)
+                    }
+                }, { noAck: true })
+
+                await new Promise((s, r) => {
+                    this.connection.on('error', r)
+                    this.channel.on('error', r)
+                })
+
             } catch (e) {
                 console.error(e)
-                return connect(n + 1)
+                console.log(`[${n} time(s)] Retry in 5s`)
+                await new Promise(s => setTimeout(s, 5000))
             }
-            this.connection.on('error', e => (console.error(e), connect(n + 1)))
-            this.channel.on('error', e => (console.error(e), connect(n + 1)))
-            console.log('AMQP inited')
-            this.listeners.size > 0 && console.log(`Re - actived ${this.listeners.size} consumers & subscribers`)
-
-            for (const listener of this.listeners) {
-                await activeResponders(listener)
-                await activeSubscribers(listener)
-            }
-
-            for (const listener of this.listeners) {
-                if (Reflect.hasMetadata(ON_RECONNECT_CALLBACK, listener)) {
-                    const method = Reflect.getMetadata(ON_RECONNECT_CALLBACK, listener)
-                    listener[method]()
-                }
-            }
-
-            // Active request by name
-            const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
-
-            await AMQP.channel.consume(queue, async msg => {
-                const { id, success, data, message } = JSON.parse(msg.content) as Response
-                if (ResponseCallbackList.has(id)) {
-                    const cb = ResponseCallbackList.get(id)
-                    success ? cb.success(data) : cb.reject(message)
-                    ResponseCallbackList.delete(id)
-                }
-            }, { noAck: true })
         }
-        await connect(0)
     }
 
     static connect() {
-        const add = target => this.listeners.add(target)
+        const process = target => {
+            this.listeners.add(target)
+            this.activeClass(target)
+        }
         return (C: any) => {
             return class extends C {
                 constructor(...props) {
                     super(...props)
-                    setImmediate(async () => {
-                        await activeResponders(this)
-                        await activeSubscribers(this)
-                        add(this)
-                        if (Reflect.hasMetadata(ON_READY_CALLBACK, this)) {
-                            const on_ready_callback_method = Reflect.getMetadata(ON_READY_CALLBACK, this)
-                            this[on_ready_callback_method]()
-                        }
-                    })
+                    process(this)
                 }
             } as any
         }

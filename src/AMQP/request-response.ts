@@ -41,7 +41,7 @@ export const activeResponders = async (target: any) => {
 
     const promises = responders.map(async ({ method, active_when, limit, id, process_old_requests }) => {
 
-        active_when && await waitFor(() => active_when(target))
+
         const started_time = Date.now()
 
         const channel = await AMQP.getChannel({ limit })
@@ -74,26 +74,29 @@ export const activeResponders = async (target: any) => {
         }
 
         // Round request
-        await channel.assertQueue(queue, { durable: false })
-        channel.consume(
-            queue,
-            message_handler,
-            { noAck: limit == undefined, consumerTag: `${request_name}-${method}-responder-${v4()}` }
-        )
+        setImmediate(async () => {
+            await channel.assertQueue(queue, { durable: false })
+            active_when && await waitFor(() => active_when(target))
 
-        // Create direct request
-        if (id) {
-            const key = typeof id == 'string' ? id : await id(target)
-            await channel.assertExchange(queue, 'direct')
-            const { queue: direct_request_queue } = await channel.assertQueue(`${queue}--${key}`, { exclusive: true, durable: false })
-            await channel.bindQueue(direct_request_queue, queue, key)
             await channel.consume(
-                direct_request_queue,
+                queue,
                 message_handler,
                 { noAck: limit == undefined, consumerTag: `${request_name}-${method}-responder-${v4()}` }
             )
-        }
 
+            // Create direct request
+            if (id) {
+                const key = typeof id == 'string' ? id : await id(target)
+                await channel.assertExchange(queue, 'direct')
+                const { queue: direct_request_queue } = await channel.assertQueue(`${queue}--${key}`, { exclusive: true, durable: false })
+                await channel.bindQueue(direct_request_queue, queue, key)
+                await channel.consume(
+                    direct_request_queue,
+                    message_handler,
+                    { noAck: limit == undefined, consumerTag: `${request_name}-${method}-responder-${v4()}` }
+                )
+            }
+        })
     })
 
     await Promise.all(promises)
