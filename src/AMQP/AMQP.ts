@@ -35,38 +35,44 @@ export class AMQP {
 
         const connection_url = url || process.env.RABBIT_MQ_URL || 'amqp://localhost:6789'
 
-        for (let n = 0; true; n++) {
+        await new Promise(async done => {
+            for (let n = 0; true; n++) {
 
-            try {
-                this.connection = new Connection(connection_url)
-                await this.connection.init()
+                try {
+                    this.connection = new Connection(connection_url)
+                    await this.connection.init()
 
-                // Active all listener
-                for (const listener of this.listeners) this.activeClass(listener, n)
+                    this.channel = await this.connection.createChannel()
 
-                // Active request by name
-                const { queue } = await AMQP.channel.assertQueue(AMQP.local_response_queue, { exclusive: true, durable: false })
+                    // Active all listener
+                    for (const listener of this.listeners) this.activeClass(listener, n)
 
-                await AMQP.channel.consume(queue, async msg => {
-                    const { id, success, data, message } = JSON.parse(msg.content) as Response
-                    if (ResponseCallbackList.has(id)) {
-                        const cb = ResponseCallbackList.get(id)
-                        success ? cb.success(data) : cb.reject(message)
-                        ResponseCallbackList.delete(id)
-                    }
-                }, { noAck: true })
+                    // Active request by name
+                    const { queue } = await this.channel.assertQueue(this.local_response_queue, { exclusive: true, durable: false })
 
-                await new Promise((s, r) => {
-                    this.connection.on('error', r)
-                    this.channel.on('error', r)
-                })
+                    await this.channel.consume(queue, async msg => {
+                        const { id, success, data, message } = JSON.parse(msg.content) as Response
+                        if (ResponseCallbackList.has(id)) {
+                            const cb = ResponseCallbackList.get(id)
+                            success ? cb.success(data) : cb.reject(message)
+                            ResponseCallbackList.delete(id)
+                        }
+                    }, { noAck: true })
 
-            } catch (e) {
-                console.error(e)
-                console.log(`[${n} time(s)] Retry in 5s`)
-                await new Promise(s => setTimeout(s, 5000))
+                    done()
+
+                    await new Promise((s, r) => {
+                        this.connection.on('error', r)
+                        this.channel.on('error', r)
+                    })
+
+                } catch (e) {
+                    console.error(e)
+                    console.log(`[${n} time(s)] Retry in 5s`)
+                    await new Promise(s => setTimeout(s, 5000))
+                }
             }
-        }
+        })
     }
 
     static connect() {
