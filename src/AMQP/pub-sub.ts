@@ -43,15 +43,19 @@ export const createAmqpEvent = <T extends {}>(event_name: string) => {
 }
 
 export const activeSubscribers = async (target: any) => {
+
     const subscribers = (Reflect.getMetadata(AMQP_SUBSCRIBERS, target) || []) as EventMetadata[]
-    for (const { method, event_name, limit, active_when } of subscribers) {
+    const promies = subscribers.map(async ({ method, event_name, limit, active_when }) => {
+
         const channel: Channel = await AMQP.getChannel({ limit })
         const exchange = `${process.env.QUEUE_PREFIX || ''}|pubsub|${event_name}`
         await channel.assertExchange(exchange, 'fanout')
         const { queue } = await channel.assertQueue('', { exclusive: true, durable: false })
         await channel.bindQueue(queue, exchange, '')
-        active_when && await waitFor(() => active_when(target))
         const subscribler_class_name = Object.getPrototypeOf(Object.getPrototypeOf(target)).constructor.name
+
+
+        active_when && await waitFor(() => active_when(target))
         await channel.consume(
             queue,
             async msg => {
@@ -64,5 +68,7 @@ export const activeSubscribers = async (target: any) => {
             },
             { noAck: true, consumerTag: `event:${event_name}#${subscribler_class_name}-${method}` }
         )
-    }
+    })
+
+    await Promise.all(promies)
 }

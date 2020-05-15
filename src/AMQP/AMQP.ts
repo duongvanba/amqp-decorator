@@ -3,6 +3,7 @@ import { Connection, Channel } from "amqplib-as-promised/lib"
 import { activeResponders } from './request-response'
 import { activeSubscribers } from './pub-sub'
 import { v4 } from 'uuid'
+import { ON_READY_CALLBACK, ON_RECONNECT_CALLBACK } from './symbol'
 
 const ResponseCallbackList = new Map<string, { reject: Function, success: Function }>()
 type Request = { id: string, args: any[], respond_to: string, requested_time: number }
@@ -45,6 +46,10 @@ export class AMQP {
             for (const listener of this.listeners) {
                 activeResponders(listener)
                 activeSubscribers(listener)
+                if (Reflect.hasMetadata(ON_RECONNECT_CALLBACK, listener)) {
+                    const method = Reflect.getMetadata(ON_RECONNECT_CALLBACK, listener)
+                    listener[method]
+                }
             }
 
 
@@ -72,6 +77,10 @@ export class AMQP {
                     activeResponders(this)
                     activeSubscribers(this)
                     add(this)
+                    if (Reflect.hasMetadata(ON_READY_CALLBACK, this)) {
+                        const on_ready_callback_method = Reflect.getMetadata(ON_READY_CALLBACK, this)
+                        this[on_ready_callback_method]
+                    }
                 }
             } as any
         }
