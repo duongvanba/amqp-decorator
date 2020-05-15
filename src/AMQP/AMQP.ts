@@ -48,7 +48,7 @@ export class AMQP {
                 activeSubscribers(listener)
                 if (Reflect.hasMetadata(ON_RECONNECT_CALLBACK, listener)) {
                     const method = Reflect.getMetadata(ON_RECONNECT_CALLBACK, listener)
-                    listener[method]
+                    listener[method]()
                 }
             }
 
@@ -79,7 +79,7 @@ export class AMQP {
                     add(this)
                     if (Reflect.hasMetadata(ON_READY_CALLBACK, this)) {
                         const on_ready_callback_method = Reflect.getMetadata(ON_READY_CALLBACK, this)
-                        this[on_ready_callback_method]
+                        this[on_ready_callback_method]()
                     }
                 }
             } as any
