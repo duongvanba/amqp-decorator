@@ -33,7 +33,7 @@ export const createAmqpEvent = <T extends {}>(event_name: string) => {
         subscribe: (options: PubSubQueueOptions = {}) => (
             target: any,
             method: string,
-            handler: TypedPropertyDescriptor<(data?: T, published_at?: number) => void>
+            handler: TypedPropertyDescriptor<(data?: T, published_at?: number) => Promise<void>>
         ) => {
             const list: EventMetadata[] = Reflect.getMetadata(AMQP_SUBSCRIBERS, target) || []
             list.push({ event_name, method, ...options })
