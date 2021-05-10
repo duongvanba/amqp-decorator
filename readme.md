@@ -110,7 +110,7 @@ export class WorkerComposerAppModule { }
   ```typescript
   // some-event.ts
   import { createAmqpEvent } from 'amqp-decorator'
-  export const some_event = await createAmqpEvent<{x: string}>('some_event')
+  export const some_event = createAmqpEvent<{x: string}>('some_event')
   ```
   
 ```typescript
